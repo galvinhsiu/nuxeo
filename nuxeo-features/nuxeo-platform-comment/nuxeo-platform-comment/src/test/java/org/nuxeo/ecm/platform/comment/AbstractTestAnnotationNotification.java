@@ -31,7 +31,9 @@ import static org.nuxeo.ecm.platform.comment.api.CommentEvents.COMMENT_REMOVED;
 import static org.nuxeo.ecm.platform.comment.api.CommentEvents.COMMENT_UPDATED;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -49,6 +51,7 @@ import org.nuxeo.ecm.core.event.test.CapturingEventListener;
 import org.nuxeo.ecm.platform.comment.api.Annotation;
 import org.nuxeo.ecm.platform.comment.api.AnnotationImpl;
 import org.nuxeo.ecm.platform.comment.api.AnnotationService;
+import org.nuxeo.ecm.platform.comment.api.Comment;
 import org.nuxeo.ecm.platform.comment.api.CommentManager;
 import org.nuxeo.ecm.platform.comment.api.ExternalEntity;
 import org.nuxeo.ecm.platform.ec.notification.NotificationConstants;
@@ -84,6 +87,8 @@ public abstract class AbstractTestAnnotationNotification {
     protected SmtpMailServerFeature.MailsResult emailsResult;
 
     protected DocumentModel annotatedDocumentModel;
+
+    protected List<SmtpMailServerFeature.MailMessage> mails = new ArrayList<>();
 
     @Before
     public void before() {
@@ -153,10 +158,36 @@ public abstract class AbstractTestAnnotationNotification {
             assertEquals(1, handledEvents.size());
             Event expectedEvent = handledEvents.get(0);
             assertEquals(annotationEventType, expectedEvent.getName());
-            checkDocumentEventContext(expectedEvent, annotationDocumentModel, annotatedDocumentModel);
-            checkReceivedMail(emailsResult.getMails(), annotationDocumentModel, annotatedDocumentModel,
-                    handledEvents.get(0), annotationEventType);
+
+            checkDocumentEventContext(expectedEvent, annotationDocumentModel, annotatedDocumentModel,
+                    annotatedDocumentModel);
+
+            // Deduct only the emails sent since the last time
+            List<SmtpMailServerFeature.MailMessage> previousMails = new ArrayList<>(mails);
+            mails.clear();
+            mails.addAll(emailsResult.getMails()
+                                     .stream()
+                                     .filter(Predicate.not(previousMails::contains))
+                                     .collect(Collectors.toList()));
+            checkReceivedMail(mails, annotationDocumentModel, annotatedDocumentModel, handledEvents.get(0),
+                    annotationEventType);
         }
+    }
+
+    @Test
+    public void shouldNotifyWithTheRightAnnotatedDocument() {
+        // First comment
+        captureAndVerifyAnnotationEventNotification(() -> {
+            Annotation createdAnnotation = createAnnotationAndAddSubscription("CommentAdded", "Creation");
+            return session.getDocument(new IdRef(createdAnnotation.getId()));
+        }, COMMENT_ADDED, DOCUMENT_CREATED);
+
+        // Reply
+        captureAndVerifyAnnotationEventNotification(() -> {
+            Comment reply = createAnnotation(annotatedDocumentModel);
+            DocumentModel replyDocumentModel = session.getDocument(new IdRef(reply.getId()));
+            return session.getDocument(new IdRef(replyDocumentModel.getId()));
+        }, COMMENT_ADDED, DOCUMENT_CREATED);
     }
 
     protected Annotation createAnnotationAndAddSubscription(String... notifications) {
@@ -166,10 +197,14 @@ public abstract class AbstractTestAnnotationNotification {
             notificationService.addSubscription(subscriber, notif, annotatedDocumentModel, false, principal, notif);
         }
 
+        return createAnnotation(annotatedDocumentModel);
+    }
+
+    protected Annotation createAnnotation(DocumentModel annotatedDocModel) {
         Annotation annotation = new AnnotationImpl();
         annotation.setAuthor(session.getPrincipal().getName());
         annotation.setText("Any annotation message");
-        annotation.setParentId(annotatedDocumentModel.getId());
+        annotation.setParentId(annotatedDocModel.getId());
         annotation.setXpath("files:files/0/file");
         annotation.setCreationDate(Instant.now());
         annotation.setModificationDate(Instant.now());

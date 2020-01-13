@@ -30,7 +30,9 @@ import static org.nuxeo.ecm.platform.comment.api.CommentEvents.COMMENT_ADDED;
 import static org.nuxeo.ecm.platform.comment.api.CommentEvents.COMMENT_REMOVED;
 import static org.nuxeo.ecm.platform.comment.api.CommentEvents.COMMENT_UPDATED;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -78,6 +80,8 @@ public abstract class AbstractTestCommentNotification {
     protected CommentManager commentManager;
 
     protected DocumentModel commentedDocumentModel;
+
+    protected List<SmtpMailServerFeature.MailMessage> mails = new ArrayList<>();
 
     @Before
     public void before() {
@@ -134,6 +138,22 @@ public abstract class AbstractTestCommentNotification {
         }, COMMENT_REMOVED, DOCUMENT_REMOVED);
     }
 
+    @Test
+    public void shouldNotifyWithTheRightCommentedDocument() {
+        // First comment
+        captureAndVerifyCommentEventNotification(() -> {
+            Comment createdComment = createCommentAndAddSubscription("CommentAdded", "Creation");
+            return session.getDocument(new IdRef(createdComment.getId()));
+        }, COMMENT_ADDED, DOCUMENT_CREATED);
+
+        // Reply
+        captureAndVerifyCommentEventNotification(() -> {
+            Comment reply = createComment(commentedDocumentModel);
+            DocumentModel replyDocumentModel = session.getDocument(new IdRef(reply.getId()));
+            return session.getDocument(new IdRef(replyDocumentModel.getId()));
+        }, COMMENT_ADDED, DOCUMENT_CREATED);
+    }
+
     protected void captureAndVerifyCommentEventNotification(Supplier<DocumentModel> supplier, String commentEventType,
             String documentEventType) {
         try (CapturingEventListener listener = new CapturingEventListener(commentEventType, documentEventType)) {
@@ -149,9 +169,17 @@ public abstract class AbstractTestCommentNotification {
 
             assertEquals(1, handledEvents.size());
 
-            checkDocumentEventContext(handledEvents.get(0), commentDocumentModel, commentedDocumentModel);
-            checkReceivedMail(emailsResult.getMails(), commentDocumentModel, commentedDocumentModel,
-                    handledEvents.get(0), commentEventType);
+            checkDocumentEventContext(handledEvents.get(0), commentDocumentModel, commentedDocumentModel,
+                    commentedDocumentModel);
+            // Deduct only the emails sent since the last time
+            List<SmtpMailServerFeature.MailMessage> previousMails = new ArrayList<>(mails);
+            mails.clear();
+            mails.addAll(emailsResult.getMails()
+                                     .stream()
+                                     .filter(Predicate.not(previousMails::contains))
+                                     .collect(Collectors.toList()));
+            checkReceivedMail(mails, commentDocumentModel, commentedDocumentModel, handledEvents.get(0),
+                    commentEventType);
         }
     }
 
@@ -167,10 +195,14 @@ public abstract class AbstractTestCommentNotification {
             notificationService.addSubscription(subscriber, notif, commentedDocumentModel, false, principal, notif);
         }
 
+        return createComment(commentedDocumentModel);
+    }
+
+    protected Comment createComment(DocumentModel commentedDocModel) {
         Comment comment = new CommentImpl();
         comment.setAuthor("Administrator");
         comment.setText("any Comment message");
-        comment.setParentId(commentedDocumentModel.getId());
+        comment.setParentId(commentedDocModel.getId());
 
         return commentManager.createComment(session, comment);
     }
