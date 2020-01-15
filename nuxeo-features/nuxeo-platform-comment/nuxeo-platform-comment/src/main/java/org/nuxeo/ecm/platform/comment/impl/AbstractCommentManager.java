@@ -25,6 +25,7 @@ import static java.util.Objects.requireNonNull;
 import static org.nuxeo.ecm.platform.comment.workflow.utils.CommentsConstants.COMMENT_AUTHOR;
 import static org.nuxeo.ecm.platform.comment.workflow.utils.CommentsConstants.COMMENT_PARENT_ID;
 import static org.nuxeo.ecm.platform.comment.workflow.utils.CommentsConstants.COMMENT_SCHEMA;
+import static org.nuxeo.ecm.platform.ec.notification.service.NotificationService.AUTOSUBSCRIBE_CONFIG_KEY;
 
 import java.io.Serializable;
 import java.util.Collection;
@@ -42,6 +43,8 @@ import org.nuxeo.ecm.core.api.IdRef;
 import org.nuxeo.ecm.core.api.NuxeoPrincipal;
 import org.nuxeo.ecm.core.api.PartialList;
 import org.nuxeo.ecm.core.api.PropertyException;
+import org.nuxeo.ecm.core.api.model.Property;
+import org.nuxeo.ecm.core.api.model.PropertyNotFoundException;
 import org.nuxeo.ecm.core.api.security.ACE;
 import org.nuxeo.ecm.core.api.security.ACL;
 import org.nuxeo.ecm.core.api.security.ACP;
@@ -54,8 +57,11 @@ import org.nuxeo.ecm.core.event.impl.DocumentEventContext;
 import org.nuxeo.ecm.platform.comment.api.Comment;
 import org.nuxeo.ecm.platform.comment.api.CommentConstants;
 import org.nuxeo.ecm.platform.comment.api.CommentManager;
+import org.nuxeo.ecm.platform.ec.notification.NotificationConstants;
+import org.nuxeo.ecm.platform.notification.api.NotificationManager;
 import org.nuxeo.ecm.platform.usermanager.UserManager;
 import org.nuxeo.runtime.api.Framework;
+import org.nuxeo.runtime.services.config.ConfigurationService;
 
 /**
  * @since 10.3
@@ -140,9 +146,15 @@ public abstract class AbstractCommentManager implements CommentManager {
     }
 
     protected NuxeoPrincipal getAuthor(DocumentModel docModel) {
-        String[] contributors = (String[]) docModel.getProperty("dublincore", "contributors");
         UserManager userManager = Framework.getService(UserManager.class);
-        return userManager.getPrincipal(contributors[0]);
+        try {
+            // this is more reliable in case of a comment
+            Property authorProp = docModel.getProperty(COMMENT_AUTHOR);
+            return userManager.getPrincipal((String) authorProp.getValue());
+        } catch (PropertyNotFoundException e) {
+            String[] contributors = (String[]) docModel.getProperty("dublincore", "contributors");
+            return userManager.getPrincipal(contributors[0]);
+        }
     }
 
     protected void setFolderPermissions(CoreSession session, DocumentModel documentModel) {
@@ -191,6 +203,78 @@ public abstract class AbstractCommentManager implements CommentManager {
 
         DocumentModel commentParent = session.getDocument(getCommentedDocumentRef(session, commentDocumentModel));
         notifyEvent(session, eventType, commentParent, commentDocumentModel);
+    }
+
+    /**
+     * Checks if a document has comments.
+     *
+     * @param session the core session
+     * @param document the document model who's comments are being counted
+     * @return true if comments were found
+     * @since 11.1
+     */
+    protected abstract boolean isDocumentNotCommented(CoreSession session, DocumentModel document);
+
+    /**
+     * Checks if a document has comments from a particular user.
+     *
+     * @param session the core session
+     * @param document the document model who's comments are being counted
+     * @return true if comments were found
+     * @since 11.1
+     */
+    protected abstract boolean isDocumentNotCommentedByUser(CoreSession session, String author, DocumentModel document);
+
+    /**
+     * Subscribes top level document's author on first comment and commentor on his first comment if autosubscribtion is
+     * turned on.
+     *
+     * @param session the core session
+     * @param commentDocModel the comment
+     * @param document the document being commented
+     * @since 11.1
+     */
+    protected void autosubscribeToNewCommentsNotifications(CoreSession session, DocumentModel commentDocModel,
+            DocumentModel document) {
+        ConfigurationService configService = Framework.getService(ConfigurationService.class);
+
+        if (configService.isBooleanFalse(AUTOSUBSCRIBE_CONFIG_KEY)) {
+            return;
+        }
+
+        NuxeoPrincipal topLevelDocumentAuthor = getAuthor(document);
+        if (isDocumentNotCommented(session, document)) {
+            // Document author is subscribed on first comment by anybody
+            subscribeToNeCommentNotifications(document, topLevelDocumentAuthor);
+
+        }
+
+        NuxeoPrincipal commentAuthor = getAuthor(commentDocModel);
+        if (topLevelDocumentAuthor.getName().equals(commentAuthor.getName())) {
+            // Document author is comment author. He doesn't need to be resubscribed
+            return;
+        }
+
+        if (isDocumentNotCommentedByUser(session, commentAuthor.getName(), document)) {
+            // Comment author is writing his first comment on the document
+            subscribeToNeCommentNotifications(document, commentAuthor);
+        }
+    }
+
+    /**
+     * Subscribes a user to notifications on the document.
+     *
+     * @param document the document being commented
+     * @param user the user to subscribe to comment notifications
+     * @since 11.1
+     */
+    protected void subscribeToNeCommentNotifications(DocumentModel document, NuxeoPrincipal user) {
+        String subscriber = NotificationConstants.USER_PREFIX + user.getName();
+        NotificationManager notificationManager = Framework.getService(NotificationManager.class);
+        if (notificationManager != null) {
+            notificationManager.addSubscription(subscriber, COMMENT_ADDED_NOTIFICATION, document, false, user,
+                    COMMENT_ADDED_NOTIFICATION);
+        }
     }
 
 }

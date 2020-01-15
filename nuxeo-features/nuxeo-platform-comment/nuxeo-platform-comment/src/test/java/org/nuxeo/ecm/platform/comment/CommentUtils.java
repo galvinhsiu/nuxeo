@@ -45,12 +45,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.nuxeo.common.utils.StringUtils;
 import org.nuxeo.ecm.core.api.DocumentModel;
 import org.nuxeo.ecm.core.api.NuxeoException;
 import org.nuxeo.ecm.core.event.Event;
 import org.nuxeo.ecm.core.event.impl.DocumentEventContext;
+import org.nuxeo.ecm.platform.usermanager.UserManager;
+import org.nuxeo.ecm.platform.usermanager.exceptions.UserAlreadyExistsException;
 import org.nuxeo.mail.SmtpMailServerFeature.MailMessage;
+import org.nuxeo.runtime.api.Framework;
 
 import net.htmlparser.jericho.Renderer;
 import net.htmlparser.jericho.Source;
@@ -59,6 +64,8 @@ import net.htmlparser.jericho.Source;
  * @since 11.1
  */
 public class CommentUtils {
+
+    public static final Logger log = LogManager.getLogger(CommentUtils.class);
 
     public static final SimpleDateFormat EVENT_DATE_FORMAT = new SimpleDateFormat("dd/MM/yyyy - HH:mm");
 
@@ -126,10 +133,27 @@ public class CommentUtils {
                                                     .collect(Collectors.toList());
             assertEquals(expectedMailsCount, mailsBySubject.size());
 
-            String expectedMailContent = getExpectedMailContent(commentDocModel, commentedDocModel, event,
+            checkMailContent(mailsBySubject.get(mailsBySubject.size() - 1), commentDocModel, commentedDocModel, event,
                     commentEventType);
-            assertEquals(expectedMailContent, getMailContent(mailsBySubject.get(mailsBySubject.size() - 1)));
         }
+    }
+
+    /**
+     * Checks the received mail, sent when a comment / annotation is created or updated.
+     *
+     * @param mail the mail to compare
+     * @param commentDocModel the document model of the comment, cannot be {@code null}
+     * @param commentedDocModel the document being commented, cannot be {@code null}
+     * @param event the event, cannot be {@code null}
+     * @param commentEventType the type of comment event {@link org.nuxeo.ecm.platform.comment.api.CommentEvents},
+     *            cannot be {@code null}
+     */
+    public static String checkMailContent(MailMessage mail, DocumentModel commentDocModel,
+            DocumentModel commentedDocModel, Event event, String commentEventType) {
+        String expectedMailContent = getExpectedMailContent(commentDocModel, commentedDocModel, event,
+                commentEventType);
+        assertEquals(expectedMailContent, getMailContent(mail));
+        return expectedMailContent;
     }
 
     public static String getExpectedMailContent(DocumentModel commentDocModel, DocumentModel commentedDocModel,
@@ -165,4 +189,18 @@ public class CommentUtils {
         }
         return content;
     }
+
+    public static void createUser(String userName) {
+        try {
+            UserManager userManager = Framework.getService(UserManager.class);
+            DocumentModel userModel = userManager.getBareUserModel();
+            userModel.setProperty("user", "username", userName);
+            userModel.setProperty("user", "email", userName + "@nuxeo.com");
+            userManager.createUser(userModel);
+        } catch (UserAlreadyExistsException e) {
+            // Avoid failure in tests if the user already exists
+            log.trace("User already exists", e);
+        }
+    }
+
 }

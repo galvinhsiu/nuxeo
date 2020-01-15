@@ -525,4 +525,14 @@ public class CommentManagerImpl extends AbstractCommentManager {
     public DocumentRef getCommentedDocumentRef(CoreSession session, DocumentModel commentDocumentModel) {
         throw new UnsupportedOperationException();
     }
+
+    @Override
+    protected boolean isDocumentNotCommented(CoreSession session, DocumentModel document) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected boolean isDocumentNotCommentedByUser(CoreSession session, String author, DocumentModel document) {
+        throw new UnsupportedOperationException();
+    }
 }

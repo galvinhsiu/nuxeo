@@ -79,6 +79,13 @@ public class NotificationService extends DefaultComponent implements Notificatio
 
     private static final Log log = LogFactory.getLog(NotificationService.class);
 
+    /**
+     * The key to the config turning on or off autosubscription.
+     *
+     * @since 11.1
+     */
+    public static final String AUTOSUBSCRIBE_CONFIG_KEY = "org.nuxeo.ecm.platform.comment.service.notification.autosubscribe";
+
     /** @deprecated since 10.2, seems unused */
     @Deprecated
     public static final String SUBSCRIPTION_NAME = "UserSubscription";

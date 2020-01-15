@@ -259,4 +259,16 @@ public class BridgeCommentManager extends AbstractCommentManager {
         });
     }
     
+    @Override
+    protected boolean isDocumentNotCommented(CoreSession session, DocumentModel document) {
+        // CommentManagerImpl doesn't support it.
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected boolean isDocumentNotCommentedByUser(CoreSession session, String author, DocumentModel document) {
+        // CommentManagerImpl doesn't support it.
+        throw new UnsupportedOperationException();
+    }
+
 }

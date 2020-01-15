@@ -33,6 +33,7 @@ import static org.nuxeo.ecm.core.api.event.DocumentEventTypes.DOCUMENT_CREATED;
 import static org.nuxeo.ecm.core.storage.BaseDocument.RELATED_TEXT;
 import static org.nuxeo.ecm.core.storage.BaseDocument.RELATED_TEXT_ID;
 import static org.nuxeo.ecm.core.storage.BaseDocument.RELATED_TEXT_RESOURCES;
+import static org.nuxeo.ecm.platform.comment.CommentUtils.createUser;
 import static org.nuxeo.ecm.platform.comment.impl.TreeCommentManager.COMMENT_RELATED_TEXT_ID;
 import static org.nuxeo.ecm.platform.comment.workflow.utils.CommentsConstants.COMMENTS_DIRECTORY_TYPE;
 import static org.nuxeo.ecm.platform.comment.workflow.utils.CommentsConstants.COMMENT_DOC_TYPE;
