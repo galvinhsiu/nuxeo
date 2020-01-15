@@ -121,12 +121,6 @@ public class TestCommentManagerImpl extends AbstractTestCommentManager {
 
     @Test
     public void testCreateLocalComment() {
-        DocumentModel domain = session.createDocumentModel("/", "domain", "Domain");
-        session.createDocument(domain);
-        DocumentModel doc = session.createDocumentModel("/domain", "test", "File");
-        doc = session.createDocument(doc);
-        session.save();
-
         String text = "I am a comment !";
         Comment comment = new CommentImpl();
         comment.setAuthor(AUTHOR_OF_COMMENT);

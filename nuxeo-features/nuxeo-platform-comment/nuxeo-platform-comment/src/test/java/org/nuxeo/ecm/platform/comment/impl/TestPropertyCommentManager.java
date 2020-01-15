@@ -491,7 +491,7 @@ public class TestPropertyCommentManager extends AbstractTestCommentManager {
 
     @Test
     public void testAdministratorCanManageComments() {
-        DocumentModel doc = createTestFileAndUser("bob");
+        DocumentModel doc = setACLForUser("bob");
 
         Comment comment = createSampleComment(doc.getId(), session.getPrincipal().getName(), "test");
         comment = commentManager.createComment(session, comment);
@@ -510,7 +510,7 @@ public class TestPropertyCommentManager extends AbstractTestCommentManager {
 
     @Test
     public void testAuthorCanManageComments() {
-        DocumentModel doc = createTestFileAndUser("bob");
+        DocumentModel doc = setACLForUser("bob");
 
         try (CloseableCoreSession bobSession = CoreInstance.openCoreSession(session.getRepositoryName(), "bob")) {
             Comment comment = createSampleComment(doc.getId(), "bob", "test");
@@ -523,7 +523,7 @@ public class TestPropertyCommentManager extends AbstractTestCommentManager {
 
     @Test
     public void testRegularUserCannotManageComments() {
-        DocumentModel doc = createTestFileAndUser("bob");
+        DocumentModel doc = setACLForUser("bob");
 
         Comment comment = createSampleComment(doc.getId(), session.getPrincipal().getName(), "test");
         comment = commentManager.createComment(session, comment);
@@ -832,17 +832,14 @@ public class TestPropertyCommentManager extends AbstractTestCommentManager {
         assertThat(commentModel.getPathAsString()).contains(FOLDER_COMMENT_CONTAINER);
     }
 
-    protected DocumentModel createTestFileAndUser(String user) {
-        DocumentModel domain = session.createDocumentModel("/", "domain", "Domain");
-        domain = session.createDocument(domain);
+    protected DocumentModel setACLForUser(String user) {
+        DocumentModel domain = session.getDocument(new PathRef("/domain"));
         ACPImpl acp = new ACPImpl();
         ACL acl = acp.getOrCreateACL();
         acl.add(new ACE(user, SecurityConstants.READ, true));
         acl.add(new ACE(user, SecurityConstants.ADD_CHILDREN, true));
         acl.add(new ACE(user, SecurityConstants.REMOVE_CHILDREN, true));
         session.setACP(domain.getRef(), acp, false);
-        DocumentModel doc = session.createDocumentModel("/domain", "test", "File");
-        doc = session.createDocument(doc);
         session.save();
 
         return doc;

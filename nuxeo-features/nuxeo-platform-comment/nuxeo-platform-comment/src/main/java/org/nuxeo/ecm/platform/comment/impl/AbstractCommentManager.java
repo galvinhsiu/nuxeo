@@ -66,6 +66,13 @@ public abstract class AbstractCommentManager implements CommentManager {
 
     protected static final String COMMENTS_DIRECTORY = "Comments";
 
+    /**
+     * The name of the comment added notification differs from the event.
+     *
+     * @since 11.1
+     */
+    public static final String COMMENT_ADDED_NOTIFICATION = "CommentAdded";
+
     @Override
     public List<DocumentModel> getComments(DocumentModel docModel) {
         return getComments(docModel.getCoreSession(), docModel);

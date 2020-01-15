@@ -86,6 +86,8 @@ import org.nuxeo.runtime.test.runner.Deploy;
 @Deploy("org.nuxeo.ecm.automation.core")
 public class TestTreeCommentManager extends AbstractTestCommentManager {
 
+    public static final String JAMES = "james";
+
     public static final String COPY_DOC_NAME = "CopyDoc";
 
     public static final String ROOT = "/";
@@ -225,12 +227,13 @@ public class TestTreeCommentManager extends AbstractTestCommentManager {
                 commentDocModel.getRef());
         assertEquals(doc.getRef(), topLevelCommentAncestor);
 
+        createUser(JAMES);
         // I can create a comment if i have the right permissions on the document
         ACPImpl acp = new ACPImpl();
         ACL acl = acp.getOrCreateACL();
-        acl.add(new ACE("james", SecurityConstants.READ, true));
+        acl.add(new ACE(JAMES, SecurityConstants.READ, true));
         session.setACP(doc.getRef(), acp, false);
-        try (CloseableCoreSession jamesSession = CoreInstance.openCoreSession(doc.getRepositoryName(), "james")) {
+        try (CloseableCoreSession jamesSession = CoreInstance.openCoreSession(doc.getRepositoryName(), JAMES)) {
             createAndCheckComment(jamesSession, doc, commentToCreate, 1);
         }
     }
@@ -333,11 +336,11 @@ public class TestTreeCommentManager extends AbstractTestCommentManager {
         // I can create a comment if i have the right permissions on the document
         ACPImpl acp = new ACPImpl();
         ACL acl = acp.getOrCreateACL();
-        acl.add(new ACE("james", SecurityConstants.READ, true));
+        acl.add(new ACE(JAMES, SecurityConstants.READ, true));
         session.setACP(doc.getRef(), acp, false);
         transactionalFeature.nextTransaction();
 
-        try (CloseableCoreSession jamesSession = CoreInstance.openCoreSession(doc.getRepositoryName(), "james")) {
+        try (CloseableCoreSession jamesSession = CoreInstance.openCoreSession(doc.getRepositoryName(), JAMES)) {
             assertNotNull(commentManager.getComment(jamesSession, createdComment.getId()));
 
             retrievedComments = commentManager.getComments(jamesSession, doc.getId());
@@ -382,7 +385,7 @@ public class TestTreeCommentManager extends AbstractTestCommentManager {
 
         Comment newComment = createSampleComment(doc.getId());
         newComment.setText("This a new text on this comment");
-        newComment.setAuthor("james");
+        newComment.setAuthor(JAMES);
 
         Comment updatedComment = commentManager.updateComment(session, createdComment.getId(), newComment);
         verifyCommonsInfo(doc, newComment, updatedComment, 1);
@@ -390,7 +393,7 @@ public class TestTreeCommentManager extends AbstractTestCommentManager {
         assertNotNull(lastModification);
 
         // If i am the author of the comment then i can update it
-        try (CloseableCoreSession jamesSession = CoreInstance.openCoreSession(doc.getRepositoryName(), "james")) {
+        try (CloseableCoreSession jamesSession = CoreInstance.openCoreSession(doc.getRepositoryName(), JAMES)) {
             newComment.setText("Can you call me on my phone, please");
             updatedComment = commentManager.updateComment(jamesSession, createdComment.getId(), newComment);
             verifyCommonsInfo(doc, newComment, updatedComment, 1);
@@ -421,6 +424,7 @@ public class TestTreeCommentManager extends AbstractTestCommentManager {
 
     @Test
     public void shouldDeleteComment() {
+        createUser(JAMES);
         DocumentModel doc = createDocumentModel("anyFile");
 
         Comment commentToCreate = createSampleComment(doc.getId());
@@ -437,11 +441,11 @@ public class TestTreeCommentManager extends AbstractTestCommentManager {
 
         // Create another comment with another author
         commentToCreate = createSampleComment(doc.getId());
-        commentToCreate.setAuthor("james");
+        commentToCreate.setAuthor(JAMES);
         createdComment = createAndCheckComment(session, doc, commentToCreate, 1);
 
         // If i am the author of the comment then i can delete it
-        try (CloseableCoreSession jamesSession = CoreInstance.openCoreSession(doc.getRepositoryName(), "james")) {
+        try (CloseableCoreSession jamesSession = CoreInstance.openCoreSession(doc.getRepositoryName(), JAMES)) {
             commentManager.deleteComment(jamesSession, createdComment.getId());
             assertFalse(jamesSession.exists(new IdRef(createdComment.getId())));
             assertFalse(session.exists(new IdRef(createdComment.getId())));

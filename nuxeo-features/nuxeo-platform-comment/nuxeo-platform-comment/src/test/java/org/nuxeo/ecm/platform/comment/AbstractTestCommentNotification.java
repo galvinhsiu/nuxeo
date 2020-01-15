@@ -29,6 +29,7 @@ import static org.nuxeo.ecm.platform.comment.CommentUtils.checkReceivedMail;
 import static org.nuxeo.ecm.platform.comment.api.CommentEvents.COMMENT_ADDED;
 import static org.nuxeo.ecm.platform.comment.api.CommentEvents.COMMENT_REMOVED;
 import static org.nuxeo.ecm.platform.comment.api.CommentEvents.COMMENT_UPDATED;
+import static org.nuxeo.ecm.platform.comment.impl.AbstractCommentManager.COMMENT_ADDED_NOTIFICATION;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -108,7 +109,7 @@ public abstract class AbstractTestCommentNotification {
         // We subscribe to the creation document to check that we will not be notified about the comment creation as
         // document (see CommentCreationVeto), only the comment added, and the 'File' document creation
         captureAndVerifyCommentEventNotification(() -> {
-            Comment createdComment = createCommentAndAddSubscription("CommentAdded", "Creation");
+            Comment createdComment = createCommentAndAddSubscription(COMMENT_ADDED_NOTIFICATION, "Creation");
             return session.getDocument(new IdRef(createdComment.getId()));
         }, COMMENT_ADDED, DOCUMENT_CREATED);
     }
@@ -140,11 +141,33 @@ public abstract class AbstractTestCommentNotification {
 
     @Test
     public void shouldNotifyWithTheRightCommentedDocument() {
+<<<<<<< Updated upstream
         // First comment
         captureAndVerifyCommentEventNotification(() -> {
             Comment createdComment = createCommentAndAddSubscription("CommentAdded", "Creation");
             return session.getDocument(new IdRef(createdComment.getId()));
         }, COMMENT_ADDED, DOCUMENT_CREATED);
+=======
+        try (CapturingEventListener listener = new CapturingEventListener(COMMENT_ADDED, DOCUMENT_CREATED)) {
+            Comment createdComment = createCommentAndAddSubscription(COMMENT_ADDED_NOTIFICATION, "Creation");
+            DocumentModel commentDocumentModel = session.getDocument(new IdRef(createdComment.getId()));
+            transactionalFeature.nextTransaction();
+
+            assertTrue(listener.hasBeenFired(COMMENT_ADDED));
+            assertTrue(listener.hasBeenFired(DOCUMENT_CREATED));
+
+            List<Event> handledEvents = listener.streamCapturedEvents()
+                                                .filter(e -> COMMENT_ADDED.equals(e.getName()))
+                                                .collect(Collectors.toList());
+
+            assertEquals(1, handledEvents.size());
+
+            checkDocumentEventContext(handledEvents.get(0), commentDocumentModel, commentedDocumentModel,
+                    commentedDocumentModel);
+            checkReceivedMail(emailsResult.getMails(), commentDocumentModel, commentedDocumentModel,
+                    handledEvents.get(0), COMMENT_ADDED);
+
+>>>>>>> Stashed changes
 
         // Reply
         captureAndVerifyCommentEventNotification(() -> {
